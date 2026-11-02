@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Şan Takvimi</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root {
+    --bg: var(--tg-theme-bg-color, #ffffff);
+    --bg2: var(--tg-theme-secondary-bg-color, #f2f3f5);
+    --text: var(--tg-theme-text-color, #111);
+    --hint: var(--tg-theme-hint-color, #8a8f98);
+    --accent: var(--tg-theme-button-color, #2ea6ff);
+    --accent-text: var(--tg-theme-button-text-color, #fff);
+    --cell: var(--tg-theme-secondary-bg-color, #eef0f3);
+    --all: #22c55e;
+    --most: #facc15;
+    --some: #cbd5e1;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.4 -apple-system, system-ui, Roboto, "Segoe UI", sans-serif; overscroll-behavior: none; }
+  body { padding: 12px 12px 90px; user-select: none; -webkit-user-select: none; }
+  h1 { font-size: 18px; margin: 4px 0 2px; }
+  .sub { color: var(--hint); font-size: 13px; margin-bottom: 10px; }
+  .tabs { display: flex; background: var(--bg2); border-radius: 12px; padding: 3px; margin-bottom: 12px; }
+  .tabs button { flex: 1; border: 0; background: transparent; color: var(--hint); padding: 8px; border-radius: 10px; font-weight: 600; font-size: 14px; }
+  .tabs button.on { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .view { display: none; } .view.on { display: block; }
+  .grid { display: grid; grid-template-columns: 38px repeat(7, 1fr); gap: 3px; touch-action: none; }
+  .hd { text-align: center; font-size: 12px; font-weight: 600; color: var(--hint); padding-bottom: 4px; }
+  .hd.today { color: var(--accent); }
+  .hr { font-size: 11px; color: var(--hint); display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; }
+  .c { aspect-ratio: 1 / 1; border-radius: 7px; background: var(--cell); transition: transform .08s; position: relative; }
+  .c.on { background: var(--accent); }
+  .c:active { transform: scale(.9); }
+  .c.l0 { background: var(--cell); } .c.l1 { background: var(--some); } .c.l2 { background: var(--most); } .c.l3 { background: var(--all); }
+  .c .n { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: rgba(0,0,0,.55); }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+  .presets button { border: 0; background: var(--bg2); color: var(--text); padding: 7px 11px; border-radius: 20px; font-size: 13px; }
+  .presets button.danger { color: #ef4444; }
+  .stat { color: var(--hint); font-size: 13px; margin-top: 8px; }
+  .legend { display: flex; gap: 12px; font-size: 12px; color: var(--hint); margin: 10px 0; flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+  .who { background: var(--bg2); border-radius: 12px; padding: 10px 12px; margin-top: 10px; font-size: 14px; min-height: 42px; }
+  .who b { display: block; margin-bottom: 2px; }
+  .best { margin-top: 12px; }
+  .best div { padding: 8px 12px; background: var(--bg2); border-radius: 10px; margin-bottom: 6px; font-size: 14px; }
+  .best div.top { background: color-mix(in srgb, var(--all) 25%, var(--bg2)); }
+  .save { position: fixed; left: 12px; right: 12px; bottom: 16px; padding: 14px; border: 0; border-radius: 14px; background: var(--accent); color: var(--accent-text); font-size: 16px; font-weight: 700; display: none; }
+  .save.show { display: block; }
+</style>
+</head>
+<body>
+<h1 id="title">Şan Takvimi</h1>
+<div class="sub" id="sub">Müsait olduğun saatleri boyayın: dokun ya da parmağını sürükle.</div>
+
+<div class="tabs">
+  <button id="tabMe" class="on">Benim takvimim</button>
+  <button id="tabAll">Ortak saatler</button>
+</div>
+
+<div id="viewMe" class="view on">
+  <div class="grid" id="gridMe"></div>
+  <div class="presets">
+    <button data-p="wd-eve">Hafta içi akşam</button>
+    <button data-p="we">Hafta sonu</button>
+    <button data-p="all">Hepsi</button>
+    <button data-p="clear" class="danger">Temizle</button>
+  </div>
+  <div class="stat" id="stat"></div>
+</div>
+
+<div id="viewAll" class="view">
+  <div class="legend">
+    <span><i style="background:var(--all)"></i>Herkes boş</span>
+    <span><i style="background:var(--most)"></i>Biri hariç</span>
+    <span><i style="background:var(--some)"></i>Az kişi</span>
+  </div>
+  <div class="grid" id="gridAll"></div>
+  <div class="who" id="who">Bir kutuya dokununca kimin müsait olduğunu gösterir.</div>
+  <div class="best" id="best"></div>
+</div>
+
+<button class="save" id="save">Kaydet</button>
+
+<script>
+(function () {
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  // ---- parametreler (bot URL'nin # kısmına koyar) ----
+  const hp = new URLSearchParams(location.hash.slice(1));
+  const H0 = parseInt(hp.get('h0') || '9', 10);
+  const H1 = parseInt(hp.get('h1') || '22', 10);
+  const NH = H1 - H0;
+  const DAYS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+  const DAYS_LONG = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+  const bot = hp.get('bot') || '';
+  const today = (new Date().getDay() + 6) % 7;
+
+  // ---- kodlama: bit = d*NH + (h-H0), hex string ----
+  function decode(hex) {
+    const s = new Set();
+    if (!hex) return s;
+    let v = BigInt('0x' + hex);
+    for (let i = 0; i < 7 * NH; i++) if ((v >> BigInt(i)) & 1n) s.add(i);
+    return s;
+  }
+  function encode(set) {
+    let v = 0n;
+    for (const i of set) v |= 1n << BigInt(i);
+    return v.toString(16).padStart(Math.ceil(7 * NH / 4), '0');
+  }
+
+  const me = decode(hp.get('me') || '');
+  const original = encode(me);
+  // diğerleri: p=Ad:hex;Ad2:hex
+  const people = (hp.get('p') || '').split(';').filter(Boolean).map(x => {
+    const i = x.indexOf(':');
+    return { name: decodeURIComponent(x.slice(0, i)), set: decode(x.slice(i + 1)) };
+  });
+  const myName = hp.get('name') || (tg && tg.initDataUnsafe.user ? tg.initDataUnsafe.user.first_name : 'Ben');
+  if (hp.get('name') || (tg && tg.initDataUnsafe.user)) document.getElementById('title').textContent = myName + ' – Şan Takvimi';
+
+  // ---- grid oluştur ----
+  function buildGrid(el, cellClass) {
+    el.innerHTML = '';
+    el.appendChild(Object.assign(document.createElement('div'), { className: 'hd' }));
+    DAYS.forEach((d, i) => {
+      const h = document.createElement('div');
+      h.className = 'hd' + (i === today ? ' today' : ''); h.textContent = d; el.appendChild(h);
+    });
+    for (let h = 0; h < NH; h++) {
+      const l = document.createElement('div'); l.className = 'hr'; l.textContent = String(H0 + h).padStart(2, '0'); el.appendChild(l);
+      for (let d = 0; d < 7; d++) {
+        const c = document.createElement('div'); c.className = 'c ' + cellClass; c.dataset.i = d * NH + h; el.appendChild(c);
+      }
+    }
+  }
+
+  // ---- benim takvimim ----
+  const gridMe = document.getElementById('gridMe');
+  buildGrid(gridMe, 'me');
+  const saveBtn = document.getElementById('save');
+  function renderMe() {
+    gridMe.querySelectorAll('.c').forEach(c => c.classList.toggle('on', me.has(+c.dataset.i)));
+    document.getElementById('stat').textContent = me.size ? me.size + ' saat müsait işaretli' : 'Henüz saat işaretlenmedi';
+    const changed = encode(me) !== original;
+    if (tg && tg.MainButton) {
+      tg.MainButton.setText('Kaydet'); changed ? tg.MainButton.show() : tg.MainButton.hide();
+    } else saveBtn.classList.toggle('show', changed);
+  }
+  let painting = null;
+  function cellAt(x, y) { const e = document.elementFromPoint(x, y); return e && e.classList.contains('me') ? e : null; }
+  function paint(c) { const i = +c.dataset.i; painting ? me.add(i) : me.delete(i); c.classList.toggle('on', painting); }
+  gridMe.addEventListener('pointerdown', e => {
+    const c = cellAt(e.clientX, e.clientY); if (!c) return;
+    painting = !me.has(+c.dataset.i); paint(c); if (tg) tg.HapticFeedback && tg.HapticFeedback.selectionChanged();
+  });
+  gridMe.addEventListener('pointermove', e => { if (painting === null) return; const c = cellAt(e.clientX, e.clientY); if (c && c.classList.contains('on') !== painting) { paint(c); tg && tg.HapticFeedback && tg.HapticFeedback.selectionChanged(); } });
+  const stop = () => { if (painting !== null) { painting = null; renderMe(); } };
+  window.addEventListener('pointerup', stop); window.addEventListener('pointercancel', stop);
+
+  document.querySelectorAll('.presets button').forEach(b => b.addEventListener('click', () => {
+    const p = b.dataset.p;
+    if (p === 'clear') me.clear();
+    else for (let d = 0; d < 7; d++) for (let h = 0; h < NH; h++) {
+      const i = d * NH + h, hour = H0 + h;
+      if (p === 'all' || (p === 'we' && d >= 5) || (p === 'wd-eve' && d < 5 && hour >= 18)) me.add(i);
+    }
+    renderMe();
+  }));
+
+  // ---- kaydet ----
+  function save() {
+    const code = encode(me);
+    if (tg && tg.initDataUnsafe && tg.initDataUnsafe.query_id === undefined && tg.sendData && hp.get('mode') === 'kb') {
+      tg.sendData('s_' + code); return;
+    }
+    if (tg && bot) { tg.openTelegramLink('https://t.me/' + bot + '?start=s_' + code); setTimeout(() => tg.close(), 300); return; }
+    alert('Kod: s_' + code);
+  }
+  if (tg && tg.MainButton) tg.MainButton.onClick(save);
+  saveBtn.addEventListener('click', save);
+
+  // ---- ortak saatler ----
+  const gridAll = document.getElementById('gridAll');
+  buildGrid(gridAll, 'all');
+  const everyone = [{ name: myName, set: me }, ...people.filter(p => p.name !== myName)];
+  function renderAll() {
+    const n = everyone.length;
+    const best = [];
+    gridAll.querySelectorAll('.c').forEach(c => {
+      const i = +c.dataset.i;
+      const cnt = everyone.filter(p => p.set.has(i)).length;
+      let lvl = 0; if (n && cnt === n) lvl = 3; else if (n >= 3 && cnt === n - 1) lvl = 2; else if (cnt > 0) lvl = 1;
+      c.className = 'c all l' + lvl; c.innerHTML = cnt ? '<span class="n">' + cnt + '</span>' : '';
+      if (lvl === 3) best.push(i);
+    });
+    const bestEl = document.getElementById('best'); bestEl.innerHTML = '';
+    if (!n) { bestEl.innerHTML = '<div>Henüz kimse kayıt olmadı.</div>'; return; }
+    if (!best.length) { bestEl.innerHTML = '<div>Herkesin ortak boş olduğu saat henüz yok (' + n + ' kişi).</div>'; return; }
+    // aralıkları birleştir
+    const byDay = {}; best.forEach(i => { const d = Math.floor(i / NH); (byDay[d] = byDay[d] || []).push(i % NH + H0); });
+    const title = document.createElement('div'); title.className = 'top'; title.textContent = '✅ Herkes (' + n + ' kişi) boş:'; bestEl.appendChild(title);
+    Object.keys(byDay).sort().forEach(d => {
+      const hs = byDay[d].sort((a, b) => a - b); const parts = []; let s = hs[0], p = hs[0];
+      for (let k = 1; k <= hs.length; k++) { if (hs[k] === p + 1) p = hs[k]; else { parts.push(pad(s) + ':00–' + pad(p + 1) + ':00'); s = p = hs[k]; } }
+      const row = document.createElement('div'); row.textContent = DAYS_LONG[d] + ': ' + parts.join(', '); bestEl.appendChild(row);
+    });
+  }
+  function pad(x) { return String(x).padStart(2, '0'); }
+  gridAll.addEventListener('click', e => {
+    const c = e.target.closest('.c'); if (!c) return; const i = +c.dataset.i;
+    const d = Math.floor(i / NH), h = i % NH + H0;
+    const free = everyone.filter(p => p.set.has(i)).map(p => p.name);
+    const busy = everyone.filter(p => !p.set.has(i)).map(p => p.name);
+    document.getElementById('who').innerHTML = '<b>' + DAYS_LONG[d] + ' ' + pad(h) + ':00–' + pad(h + 1) + ':00</b>' +
+      (free.length ? '🟢 ' + free.join(', ') : '') + (busy.length ? '<br>⚪ ' + busy.join(', ') : '');
+  });
+
+  // ---- sekmeler ----
+  const tabs = { Me: document.getElementById('tabMe'), All: document.getElementById('tabAll') };
+  function show(k) {
+    for (const t in tabs) { tabs[t].classList.toggle('on', t === k); document.getElementById('view' + t).classList.toggle('on', t === k); }
+    if (k === 'All') renderAll();
+    document.getElementById('sub').textContent = k === 'Me' ? 'Müsait olduğun saatleri boyayın: dokun ya da parmağını sürükle.' : 'Rakam: o saatte kaç kişi boş. Kutuya dokun, kimler olduğunu gör.';
+  }
+  tabs.Me.onclick = () => show('Me'); tabs.All.onclick = () => show('All');
+  renderMe();
+  if (hp.get('tab') === 'all') show('All');
+})();
+</script>
+</body>
+</html>
