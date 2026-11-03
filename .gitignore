@@ -1,0 +1,4 @@
+.env
+takvim.db
+__pycache__/
+*.pyc
